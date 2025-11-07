@@ -1,0 +1,38 @@
+# application.yml
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/home_storage
+    username: amh
+    password: 071009
+
+  # 安全的 SQL 初始化配置
+  sql:
+    init:
+      mode: always                    # 启动时执行初始化脚本
+      platform: postgresql           # 指定数据库类型
+      continue-on-error: true        # 遇到错误继续执行（如表已存在）
+      data-locations:
+#        - classpath:init.sql          # 触发器、函数等
+#      data-locations: classpath:data.sql
+
+  # JPA 配置 - 确保不会自动修改表结构
+  jpa:
+    hibernate:
+      ddl-auto: validate             # 只验证表结构，不修改
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+    show-sql: true
+
+# 开发环境可以稍微宽松一些
+---
+spring:
+  config:
+    activate:
+      on-profile: dev
+  sql:
+    init:
+      mode: always
+  jpa:
+    hibernate:
+      ddl-auto: validate
