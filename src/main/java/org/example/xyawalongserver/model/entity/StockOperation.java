@@ -33,6 +33,9 @@ public class StockOperation {
     @Column(name = "note")
     private String note;
 
+    @Column(length = 50)
+    private String unit; // 新增单位字段
+
     @Column(name = "created_time")
     private LocalDateTime createdTime;
 }

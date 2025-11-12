@@ -46,7 +46,12 @@ public class WarehouseController {
     public WarehouseController(ObjectMapper objectMapper) {
         this.objectMapper = objectMapper;
     }
-
+    @Data
+    public static class DiscardBatchRequest {
+        private Long warehouseId;
+        private Long batchId;
+        private String note;
+    }
     /**
      * 创建仓库
      * POST /api/warehouses
@@ -130,7 +135,7 @@ public class WarehouseController {
     public ApiResponse<List<WarehouseIngredientDTO>> getAllGoodsInWarehouse(@RequestBody Map<String, Object> request, HttpServletRequest httpRequest) {
         Long warehouseId = (Long) request.get("warehouseId");
         List<WarehouseIngredientDTO> goodsList = warehouseService.getWarehouseIngredients(warehouseId);
-        return ApiResponse.success(goodsList);
+        return ApiResponse.success(goodsList);///
     }
 
     /**
@@ -166,33 +171,59 @@ public class WarehouseController {
      * POST /api/warehouses/{warehouseId}/stock-in
      */
     @PostMapping("/stock-in")
-    public ResponseEntity<Batch> stockIn(
+    public ApiResponse<Batch> stockIn(
             @RequestBody StockInRequest request) {
         Long warehouseId = request.getWarehouseId();
         // 设置仓库ID
         request.setWarehouseId(warehouseId);
 
         Batch batch = warehouseService.stockIn(request);
-        return ResponseEntity.ok(batch);
+        return ApiResponse.success(batch);
+    }
+    // java
+    @PostMapping("/discard-batch")
+    public ApiResponse<Void> discardBatch(@RequestBody DiscardBatchRequest request) {
+        Long warehouseId = request.getWarehouseId();
+        Long batchId = request.getBatchId();
+
+        if (warehouseId == null || batchId == null) {
+            return ApiResponse.error("warehouseId 和 batchId 不能为空");
+        }
+
+        try {
+            warehouseService.discardBatch(warehouseId, batchId, request.getNote());
+            return ApiResponse.success(null, "批次已弃置");
+        } catch (Exception e) {
+            logger.error("弃置批次失败: warehouseId={}, batchId={}, err={}", warehouseId, batchId, e.getMessage(), e);
+            return ApiResponse.error("弃置失败: " + e.getMessage());
+        }
     }
     /**
      * . 往某个仓库减少材料
      * POST /api/warehouses/{warehouseId}/stock-in
      */
     @PostMapping("/stock-out")
-    public ResponseEntity<WarehouseService.StockOutResult> stockOut(
+    public ApiResponse<WarehouseService.StockOutResult> stockOut(
             @RequestBody StockOutRequest request) {
         Long warehouseId = request.getWarehouseId();
-        // 设置仓库ID
-        request.setWarehouseId(warehouseId);
-        return ResponseEntity.ok(warehouseService.stockOutByBatch(warehouseId,request));
+        try {
+            WarehouseService.StockOutResult result = warehouseService.stockOutByBatch(warehouseId, request);
+            return ApiResponse.success(result);
+        } catch (IllegalArgumentException e) {
+            logger.warn("出库参数错误: warehouseId={}, err={}", warehouseId, e.getMessage());
+            return ApiResponse.error("出库失败: " + e.getMessage());
+        } catch (Exception e) {
+            logger.error("出库处理异常: warehouseId={}, err={}", warehouseId, e.getMessage(), e);
+            return ApiResponse.error("出库失败: " + (e.getMessage() != null ? e.getMessage() : "系统错误"));
+        }
+//        return ApiResponse.success(warehouseService.stockOutByBatch(warehouseId,request));
     }
 
     /**
      * 带预检查的批量出库
      */
     @PostMapping("/stock-out-batch")
-    public ResponseEntity<ApiResponse<BatchStockOutResult>> batchStockOutWithValidation(@Valid @RequestBody BatchStockOutRequest request) {
+    public ApiResponse<BatchStockOutResult> batchStockOutWithValidation(@Valid @RequestBody BatchStockOutRequest request) {
 
         logger.info("接收带预检查的批量出库请求: 仓库ID={}, 批次数量={}",
                 request.getWarehouseId(), request.getBatchConsumptions().size());
@@ -200,13 +231,11 @@ public class WarehouseController {
         try {
             // 参数验证
             if (request.getWarehouseId() == null) {
-                return ResponseEntity.badRequest()
-                        .body(ApiResponse.error("仓库ID不能为空"));
+                return ApiResponse.error("仓库ID不能为空");
             }
 
             if (request.getBatchConsumptions() == null || request.getBatchConsumptions().isEmpty()) {
-                return ResponseEntity.badRequest()
-                        .body(ApiResponse.error("出库批次不能为空"));
+                return ApiResponse.error("出库批次不能为空");
             }
 
             // 执行带预检查的批量出库
@@ -217,18 +246,17 @@ public class WarehouseController {
                         request.getWarehouseId(),
                         result.getSuccessfulBatches(),
                         result.getTotalBatches());
-                return ResponseEntity.ok(ApiResponse.success(result));
+                return ApiResponse.success(result);
             } else {
                 logger.warn("带预检查批量出库失败: 仓库ID={}, 原因: {}",
                         request.getWarehouseId(), result.getMessage());
-                return ResponseEntity.badRequest().body(ApiResponse.error(result.getMessage()+result.toString()));
+                return ApiResponse.error(result.getMessage()+result.toString());
             }
 
         } catch (Exception e) {
             logger.error("带预检查批量出库系统错误: 仓库ID={}, 错误: {}",
                     request.getWarehouseId(), e.getMessage(), e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(ApiResponse.error("系统错误: " + e.getMessage()));
+            return ApiResponse.error("系统错误: " + e.getMessage());
         }
     }
 
@@ -245,10 +273,10 @@ public class WarehouseController {
      * POST /api/warehouses/{warehouseId}/stock-in
      */
     @PostMapping("/stock-in-batch")
-    public ResponseEntity<List<Batch>> stockInBatch(
+    public ApiResponse<List<Batch>> stockInBatch(
             @RequestBody stockBatchDto request) {
         List<Batch> batches = warehouseService.stockInBatch(request.getWarehouseId(),request.getStockInRequests());
-        return ResponseEntity.ok(batches);
+        return ApiResponse.success(batches);
     }
 
     /**
@@ -266,11 +294,11 @@ public class WarehouseController {
      * GET /api/warehouses/user/search?keyword=冰箱
      */
     @GetMapping("/user/search")
-    public ResponseEntity<List<WarehouseDTO>> searchWarehouses(
+    public ApiResponse<List<WarehouseDTO>> searchWarehouses(
             @RequestParam String keyword, HttpServletRequest request) {
         Long userId = (Long) request.getAttribute("userId");
         List<WarehouseDTO> warehouses = warehouseService.searchWarehouses(userId, keyword);
-        return ResponseEntity.ok(warehouses);
+        return ApiResponse.success(warehouses);
     }
 
     /**

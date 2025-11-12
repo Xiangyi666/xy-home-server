@@ -14,7 +14,7 @@ import java.util.Optional;
 @Repository
 public interface BatchRepository extends JpaRepository<Batch, Long> {
     // 查询某个家庭所有仓库的批次
-    @Query("SELECT b FROM Batch b WHERE b.warehouse.family.id = :familyId")
+    @Query("SELECT b FROM Batch b WHERE b.warehouse.family.id = :familyId AND b.status = 'ACTIVE' ORDER BY b.expiryDate ASC")
     List<Batch> findByFamilyId(@Param("familyId") Long familyId);
 
     /**

@@ -13,6 +13,7 @@ public class FamilyItemDTO {
     private String itemDescription;
     private String category;
     private String brand;
+    private String unit; // 新增单位字段
     private String barcode;
     private String imageUrl;
     private BigDecimal quantity;

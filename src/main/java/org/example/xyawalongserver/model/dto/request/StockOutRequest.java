@@ -17,7 +17,6 @@ public class StockOutRequest {
     @NotNull(message = "批次ID不能为空")
     private Long batchId;
 
-    @NotBlank(message = "食材名称不能为空")
     private String ingredientName;
 
     @NotNull(message = "出库数量不能为空")

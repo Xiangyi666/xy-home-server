@@ -1,5 +1,11 @@
 package org.example.xyawalongserver.controller;
 
+import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.ExpiredJwtException;
+import io.jsonwebtoken.Jwts;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
 import org.example.xyawalongserver.model.dto.request.WechatCodeRequest;
 import org.example.xyawalongserver.model.dto.request.WechatOpenidRequest;
 import org.example.xyawalongserver.model.dto.request.WechatRegisterRequest;
@@ -9,9 +15,12 @@ import org.example.xyawalongserver.service.UserService;
 import org.example.xyawalongserver.service.WechatService;
 import org.example.xyawalongserver.util.JwtTokenUtil;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.ErrorResponse;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -65,29 +74,65 @@ public class UserController {
             return ResponseEntity.badRequest().body(error);
         }
     }
+    @Data
+    public static class RefreshTokenRequest {
+        private String refreshToken;
+        private String accessToken;
+    }
+    @Data
+    @AllArgsConstructor
+    @Builder
+    public static class TokenResponse {
+        private String accessToken;
+        private String refreshToken;
+        private String tokenType;
+        private Long expiresIn;
+    }
+    // 允许过期的token也能解析（用于刷新场景）
 
+    // 刷新token接口
+    @PostMapping("/wechat/refresh")
+    public ResponseEntity<?> refreshToken(@RequestBody RefreshTokenRequest refreshTokenRequest) {
+        try {
+            String newAccessToken = JwtTokenUtil.refreshAccessToken(refreshTokenRequest.getAccessToken(),refreshTokenRequest.getRefreshToken());
+
+            // 使用JWTUtil刷新token
+            // 返回新的token
+
+            TokenResponse tokenResponse = TokenResponse.builder()
+                    .accessToken(newAccessToken)
+                    .refreshToken(refreshTokenRequest.getRefreshToken()) // 或者生成新的refresh token
+                    .tokenType("Bearer")
+                    .expiresIn(JwtTokenUtil.getAccessTokenExpirationTime())
+                    .build();
+            return ResponseEntity.ok(tokenResponse);
+
+        } catch (RuntimeException e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(ApiResponse.error(e.getMessage()));
+        }
+    }
     /**
      * 用 openid 登录
      */
     @PostMapping("/wechat/login-by-openid")
-    public ResponseEntity<?> loginByOpenid(@RequestBody WechatOpenidRequest request) {
+    public ApiResponse<?> loginByOpenid(@RequestBody WechatOpenidRequest request) {
         try {
             User user = userService.findByWechatOpenid(request.getOpenid())
                     .orElseThrow(() -> new RuntimeException("用户未注册"));
 
             String token = jwtTokenUtil.generateToken(user.getId(), user.getUsername());
-
+            String refreshToken = jwtTokenUtil.generateRefreshToken(user.getUsername());
             Map<String, Object> response = new HashMap<>();
             response.put("token", token);
             response.put("user", user);
             response.put("message", "登录成功");
+            response.put("refreshToken", refreshToken);
 
-            return ResponseEntity.ok(response);
+            return ApiResponse.success(response);
 
         } catch (Exception e) {
-            Map<String, String> error = new HashMap<>();
-            error.put("error", e.getMessage());
-            return ResponseEntity.badRequest().body(error);
+            return ApiResponse.error(e.getMessage());
         }
     }
 

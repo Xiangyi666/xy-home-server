@@ -23,6 +23,9 @@ public class Batch {
     @JoinColumn(name = "ingredient_id", nullable = false)
     private Ingredient ingredient;
 
+    @Column(length = 50)
+    private String unit; // 新增单位字段
+
     public String getName() {
         return ingredient != null ? getIngredient().getName() : null;
     }

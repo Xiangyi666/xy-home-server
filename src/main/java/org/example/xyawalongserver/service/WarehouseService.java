@@ -62,6 +62,7 @@ public class WarehouseService {
     @Autowired
     private FamilyPermissionUtil familyPermissionUtil;
 
+
     // 辅助方法：转换实体为DTO
     private WarehouseDTO convertToDTO(Warehouse warehouse) {
         WarehouseDTO dto = new WarehouseDTO();
@@ -210,6 +211,7 @@ public class WarehouseService {
         dto.setPurchaseDate(batch.getProductionDate());
         dto.setWarehouseId(batch.getWarehouse().getId());
         dto.setWarehouseName(batch.getWarehouse().getName());
+        dto.setUnit(batch.getUnit()); // 新增单位
 
         return dto;
     }
@@ -437,10 +439,52 @@ public class WarehouseService {
             return batchOperations.size();
         }
     }
+    /**
+     * 将指定批次数量清0，标记为 DISCARDED，并记录操作流水
+     */
+    public void discardBatch(Long warehouseId, Long batchId, String note) {
+        // 权限校验：批次属于当前用户家庭
+        if (!isBatchInCurrentUserFamily(batchId)) {
+            throw new RuntimeException("批次不属于当前用户家庭");
+        }
+
+        // 获取并校验批次属于该仓库
+        Batch batch = batchRepository.findByIdAndWarehouseId(batchId, warehouseId)
+                .orElseThrow(() -> new RuntimeException("批次不存在或不属于该仓库"));
+
+        // 如果已经是 DISCARDED，则直接返回（也可以选择抛异常）
+        if ("DISCARDED".equals(batch.getStatus())) {
+            logger.info("批次已为 DISCARDED: batchId={}", batchId);
+            return;
+        }
+
+        // 保存出库前的数量用于流水记录
+        BigDecimal beforeQuantity = batch.getCurrentQuantity() == null ? BigDecimal.ZERO : batch.getCurrentQuantity();
+
+        // 将批次数量清0并标记为 DISCARDED
+        batch.setCurrentQuantity(BigDecimal.ZERO);
+        batch.setStatus("DISCARDED");
+        batchRepository.save(batch);
+
+        // 更新库存汇总与用量统计
+        try {
+            updateInventorySummary(warehouseId, batch.getIngredient().getId());
+        } catch (Exception e) {
+            logger.warn("更新库存汇总失败: warehouseId={}, batchId={}, err={}", warehouseId, batchId, e.getMessage());
+        }
+
+        try {
+            usageStatisticsService.batchUpdateUsageStatistics(warehouseId);
+        } catch (Exception e) {
+            logger.warn("触发用量统计失败: warehouseId={}, err={}", warehouseId, e.getMessage());
+        }
+    }
     public StockOutResult stockOutByBatch(Long warehouseId, StockOutRequest request) {
         // 验证请求参数
-//        validateStockOutByBatchRequest(warehouseId, request);
-
+        boolean validate = isBatchInCurrentUserFamily(request.getBatchId());
+        if(!validate) {
+            throw new RuntimeException("批次不属于当前用户家庭");
+        }
         // 获取指定的批次
         Batch batch = batchRepository.findByIdAndWarehouseId(request.getBatchId(), warehouseId)
                 .orElseThrow(() -> new RuntimeException("批次不存在或不属于该仓库"));
@@ -461,8 +505,6 @@ public class WarehouseService {
             ));
         }
 
-        // 记录原始库存用于操作记录
-//        BigDecimal originalQuantity = batch.getCurrentQuantity();
 
         // 更新批次库存
         batch.setCurrentQuantity(batch.getCurrentQuantity().subtract(request.getQuantity()));
@@ -490,8 +532,6 @@ public class WarehouseService {
         // 更新使用分析
         usageStatisticsService.batchUpdateUsageStatistics(warehouseId);
 
-        // 记录操作流水
-        recordStockOperation(warehouseId, request, operations);
         return new StockOutResult(request.getQuantity(), operations, true);
     }
     /**
@@ -567,7 +607,7 @@ public class WarehouseService {
     @Transactional
     public BatchStockOutResult batchStockOut(BatchStockOutRequest request) {
         try {
-            logger.info("开始批量出库: 仓库ID={}, 批次数量={}",
+            logger.info("开始批量出库: 仓库ID={},批次数量={}",
                     request.getWarehouseId(), request.getBatchConsumptions().size());
 
             // 1. 执行批量出库
@@ -641,6 +681,48 @@ public class WarehouseService {
             return BatchStockOutResult.failure("批量出库失败: " + e.getMessage());
         }
     }
+
+
+    /**
+     * 判断指定批次是否属于当前登录用户的家庭（便捷方法）
+     */
+    public boolean isBatchInCurrentUserFamily(Long batchId) {
+        Long userId = UserContext.getCurrentUserId();
+        return isBatchInUserFamily(batchId, userId);
+    }
+    /**
+     * 判断指定批次是否属于指定用户的家庭
+     */
+    public boolean isBatchInUserFamily(Long batchId, Long userId) {
+        Optional<Batch> opt = batchRepository.findById(batchId);
+        if (!opt.isPresent()) {
+            return false;
+        }
+        Batch batch = opt.get();
+        Warehouse warehouse = batch.getWarehouse();
+        if (warehouse == null) {
+            return false;
+        }
+
+        // 假设 Warehouse 有 getFamilyId() 字段（repository 中已有 findByFamilyId 方法）
+        Long familyId;
+        try {
+            familyId = warehouse.getFamily().getId();
+        } catch (Exception e) {
+            // 如果实体没有该字段或为 null，则视为不属于任何家庭
+            return false;
+        }
+        if (familyId == null) {
+            return false;
+        }
+
+        try {
+            familyPermissionUtil.checkUserInFamily(userId, familyId);
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
+    }
     /**
      * 记录库存操作流水
      */
@@ -682,6 +764,7 @@ public class WarehouseService {
         summary.setTotalStock(totalStock);
         inventorySummaryRepository.save(summary);
     }
+
     /**
      * 4. 往某个仓库录入原料
      */
@@ -710,6 +793,7 @@ public class WarehouseService {
         Batch batch = new Batch();
         batch.setWarehouse(warehouse);
         batch.setIngredient(ingredient);
+        batch.setUnit(request.getUnit());
         batch.setBatchNumber(batchNumber);
         batch.setInitialQuantity(request.getQuantity());
         batch.setCurrentQuantity(request.getQuantity());

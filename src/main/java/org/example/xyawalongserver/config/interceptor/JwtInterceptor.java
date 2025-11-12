@@ -20,6 +20,8 @@ public class JwtInterceptor implements HandlerInterceptor {
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) throws Exception {
         String token = request.getHeader("Authorization");
         System.out.println(token);
+        String uri = request.getRequestURI();
+        System.out.println("请求: {} {}?{}"+uri);
 
         if (token != null && token.startsWith("Bearer ")) {
             token = token.substring(7);
