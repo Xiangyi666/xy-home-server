@@ -3,6 +3,7 @@ package org.example.xyawalongserver.controller;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.ExpiredJwtException;
 import io.jsonwebtoken.Jwts;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -58,7 +59,7 @@ public class UserController {
      * 检查用户是否已注册
      */
     @GetMapping("/wechat/check")
-    public ResponseEntity<?> checkWechatUser(@RequestParam String openid) {
+    public ApiResponse<?> checkWechatUser(@RequestParam String openid) {
         try {
             boolean exists = userService.findByWechatOpenid(openid).isPresent();
 
@@ -66,12 +67,12 @@ public class UserController {
             response.put("registered", exists);
             response.put("openid", openid);
 
-            return ResponseEntity.ok(response);
+            return ApiResponse.success(response);
 
         } catch (Exception e) {
             Map<String, String> error = new HashMap<>();
             error.put("error", "检查用户失败: " + e.getMessage());
-            return ResponseEntity.badRequest().body(error);
+            return ApiResponse.error(e.getMessage());
         }
     }
     @Data
@@ -110,6 +111,33 @@ public class UserController {
         } catch (RuntimeException e) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body(ApiResponse.error(e.getMessage()));
+        }
+    }
+    // 请求体类
+    public static class UpdateUsernameRequest {
+        private String newUsername;
+
+        // getter 和 setter
+        public String getNewUsername() {
+            return newUsername;
+        }
+
+        public void setNewUsername(String newUsername) {
+            this.newUsername = newUsername;
+        }
+    }
+    @PostMapping("/updateUserName")
+    public ApiResponse<?> updateUsername(@RequestBody UpdateUsernameRequest request, HttpServletRequest httpRequest) {
+        try {
+            Long userId = (Long) httpRequest.getAttribute("userId");
+            boolean success = userService.updateUsername(userId, request.getNewUsername());
+            if (success) {
+                return ApiResponse.success("用户名修改成功");
+            } else {
+                return ApiResponse.error("用户名修改失败");
+            }
+        } catch (Exception e) {
+            return ApiResponse.error(e.getMessage());
         }
     }
     /**

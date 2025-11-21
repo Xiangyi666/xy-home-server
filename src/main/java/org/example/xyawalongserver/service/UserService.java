@@ -66,7 +66,25 @@ public class UserService {
         return warehouseRepository.save(warehouse);
     }
 
+    @Transactional
+    public boolean updateUsername(Long userId, String newUsername) {
+        try {
+            // 1. 检查用户是否存在
+            User user = userRepository.findById(userId)
+                    .orElseThrow(() -> new RuntimeException("用户不存在"));
 
+            // 3. 执行更新操作
+            int updatedCount = userRepository.updateUsername(userId, newUsername);
+
+            // 4. 返回更新结果
+            return updatedCount > 0;
+
+        } catch (Exception e) {
+            // 记录日志
+            System.err.println("修改用户名失败: " + e.getMessage());
+            return false;
+        }
+    }
     /**
      * 获取用户可以创建仓库的家庭列表
      */

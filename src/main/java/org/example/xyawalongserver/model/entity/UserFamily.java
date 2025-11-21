@@ -48,6 +48,8 @@ public class UserFamily {
         this.family = family;
         this.role = role;
     }
-
+    public String getStcikerCode() {
+        return this.family.getStickerCode();
+    }
     // Getter和Setter...
 }

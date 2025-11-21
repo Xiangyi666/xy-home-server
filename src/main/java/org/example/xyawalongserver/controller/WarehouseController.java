@@ -58,14 +58,14 @@ public class WarehouseController {
      * fix 不应该在这里
      */
     @PostMapping("/create")
-    public ResponseEntity<WarehouseDTO> createWarehouse(@RequestBody CreateWarehouseRequest request, HttpServletRequest httpRequest) {
+    public ApiResponse<WarehouseDTO> createWarehouse(@RequestBody CreateWarehouseRequest request, HttpServletRequest httpRequest) {
         Long userId = (Long) httpRequest.getAttribute("userId");
 
         Warehouse warehouse = userService.createWarehouse(userId,request.getName(),
                 request.getDescription(),
                 request.getFamilyId());
         WarehouseDTO dto = convertToDTO(warehouse);
-        return ResponseEntity.ok(dto);
+        return ApiResponse.success(dto);
     }
 
     /**

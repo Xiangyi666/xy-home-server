@@ -30,6 +30,9 @@ public class FamilyService {
 
     @Autowired
     private WarehouseRepository warehouseRepository;
+    @Autowired
+    private WarehouseService warehouseService;
+
     // 创建家庭（用户成为OWNER）
     @Transactional
     public Family createFamily(String familyName, Long creatorUserId) {
@@ -39,9 +42,14 @@ public class FamilyService {
         // 将创建者添加为家庭OWNER
         User creator = userRepository.findById(creatorUserId)
                 .orElseThrow(() -> new RuntimeException("用户不存在"));
-
+        // 新增：校验同一用户是否已存在同名家庭
+        boolean hasSameFamilyName = userFamilyRepository.existsByUserAndFamilyName(creatorUserId, familyName.trim());
+        if (hasSameFamilyName) {
+            throw new RuntimeException("您已创建同名家庭，请使用不同的家庭名称");
+        }
         UserFamily userFamily = new UserFamily(creator, savedFamily, UserFamily.FamilyRole.OWNER);
         userFamilyRepository.save(userFamily);
+        warehouseService.createWarehouse(familyName + "默认仓库", savedFamily.getId(), creatorUserId);
 
         return savedFamily;
     }
@@ -50,7 +58,7 @@ public class FamilyService {
     @Transactional
     public boolean addUserToFamily(Long familyId, Long userId, UserFamily.FamilyRole role) {
         if (userFamilyRepository.existsByUserIdAndFamilyId(userId, familyId)) {
-            return false; // 用户已在家庭中
+            throw new RuntimeException("用户已在家庭中");
         }
 
         Optional<User> userOpt = userRepository.findById(userId);

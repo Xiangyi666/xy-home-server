@@ -19,6 +19,7 @@ import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
@@ -61,7 +62,8 @@ public class WarehouseService {
 
     @Autowired
     private FamilyPermissionUtil familyPermissionUtil;
-
+    @Autowired
+    private FamilyRepository familyRepository;
 
     // 辅助方法：转换实体为DTO
     private WarehouseDTO convertToDTO(Warehouse warehouse) {
@@ -84,6 +86,32 @@ public class WarehouseService {
         return warehouses.stream()
                 .map(this::convertToDTO)
                 .collect(Collectors.toList());
+    }
+    /*
+    * 创建仓库
+    * */
+    public Warehouse createWarehouse(String name, Long familyId, Long userId) {
+        // 验证用户是否存在
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("用户不存在"));
+
+        // 验证家族是否存在
+        Family family = familyRepository.findById(familyId)
+                .orElseThrow(() -> new RuntimeException("家族不存在"));
+
+        // 检查仓库名是否重复
+        if (warehouseRepository.findByUser_IdAndName(userId, name).isPresent()) {
+            throw new RuntimeException("该仓库名称已存在");
+        }
+
+        // 创建新仓库
+        Warehouse warehouse = new Warehouse();
+        warehouse.setName(name);
+        warehouse.setFamily(family);
+        warehouse.setUser(user);
+        warehouse.setCreatedTime(LocalDateTime.now());
+
+        return warehouseRepository.save(warehouse);
     }
     /**
      * 获取用户在某个家庭下的所有仓库

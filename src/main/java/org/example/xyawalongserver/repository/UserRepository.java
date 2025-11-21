@@ -23,5 +23,9 @@ public interface UserRepository extends JpaRepository<User, Long> {
     Optional<User> findByWechatOpenid(String wechatOpenid);
     boolean existsByWechatOpenid(String wechatOpenid);
     Optional<User> findByPhoneNumber(String phoneNumber);
+    // 新增修改用户名的方法
+    @Modifying
+    @Query("UPDATE User u SET u.username = :newUsername WHERE u.id = :userId")
+    int updateUsername(@Param("userId") Long userId, @Param("newUsername") String newUsername);
 }
 

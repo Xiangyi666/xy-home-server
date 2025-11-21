@@ -14,7 +14,6 @@ import java.util.stream.Collectors;
 @Data
 @Entity
 @Table(name = "families")
-@JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
 public class Family {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -26,8 +25,8 @@ public class Family {
     @Column(name = "created_at")
     private LocalDateTime createdAt;
 
-
-
+    @Column(name= "sticker_code")
+    private String stickerCode;
     // 一个家庭有多个仓库
     @JsonIgnore
     @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})

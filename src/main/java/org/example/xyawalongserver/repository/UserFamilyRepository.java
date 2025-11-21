@@ -30,4 +30,13 @@ public interface UserFamilyRepository extends JpaRepository<UserFamily, Long> {
 
     // 删除用户从家庭中
     void deleteByUserIdAndFamilyId(Long userId, Long familyId);
+
+    /**
+     * 检查用户是否已存在同名家庭
+     * @param userId 用户ID
+     * @param familyName 家庭名称
+     * @return 是否存在同名家庭
+     */
+    @Query("SELECT COUNT(uf) > 0 FROM UserFamily uf WHERE uf.user.id = :userId AND uf.family.name = :familyName")
+    boolean existsByUserAndFamilyName(@Param("userId") Long userId, @Param("familyName") String familyName);
 }

@@ -1,5 +1,7 @@
 package org.example.xyawalongserver.service;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.commons.codec.digest.DigestUtils;
 import org.example.xyawalongserver.model.dto.response.WechatAccessTokenResponse;
 import org.example.xyawalongserver.model.dto.response.WechatAuthResponse;
@@ -29,19 +31,31 @@ public class WechatService {
             // 构建请求URL
             String url = String.format("%s?appid=%s&secret=%s&js_code=%s&grant_type=authorization_code",
                     WECHAT_AUTH_URL, appId, appSecret, code);
-
+            System.out.println("Request URL: " + url);
             // 发送HTTP请求
+            // 使用 String 接收响应
             RestTemplate restTemplate = new RestTemplate();
-            ResponseEntity<WechatAuthResponse> response = restTemplate.getForEntity(url, WechatAuthResponse.class);
+            ResponseEntity<String> response = restTemplate.getForEntity(url, String.class);
 
             if (response.getStatusCode() == HttpStatus.OK && response.getBody() != null) {
-                WechatAuthResponse authResponse = response.getBody();
+                String responseBody = response.getBody();
+                System.out.println("微信API响应: " + responseBody);
 
-                if (authResponse.getErrcode() != null && authResponse.getErrcode() != 0) {
-                    throw new RuntimeException("微信认证失败: " + authResponse.getErrmsg());
+                // 手动解析JSON
+                ObjectMapper mapper = new ObjectMapper();
+                JsonNode jsonNode = mapper.readTree(responseBody);
+
+                // 检查错误码
+                if (jsonNode.has("errcode") && jsonNode.get("errcode").asInt() != 0) {
+                    throw new RuntimeException("微信认证失败: " + jsonNode.get("errmsg").asText());
                 }
 
-                return authResponse.getOpenid();
+                // 获取openid
+                if (jsonNode.has("openid")) {
+                    return jsonNode.get("openid").asText();
+                } else {
+                    throw new RuntimeException("微信响应中未找到openid");
+                }
             } else {
                 throw new RuntimeException("微信认证服务异常");
             }

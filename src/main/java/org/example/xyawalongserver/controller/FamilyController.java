@@ -23,18 +23,18 @@ public class FamilyController {
     private FamilyService familyService;
 
     // 创建家庭
-    @PostMapping
-    public ResponseEntity<?> createFamily(@RequestBody Map<String, Object> request, HttpServletRequest httpRequest) {
+    @PostMapping("/createFamily")
+    public ApiResponse<?> createFamily(@RequestBody Map<String, Object> request, HttpServletRequest httpRequest) {
         try {
             String familyName = (String) request.get("name");
             Long userId = (Long) httpRequest.getAttribute("userId");
 
             Family family = familyService.createFamily(familyName, userId);
-            return ResponseEntity.ok(family);
+            return ApiResponse.success(family);
         } catch (Exception e) {
             Map<String, String> response = new HashMap<>();
             response.put("error", "创建家庭失败: " + e.getMessage());
-            return ResponseEntity.badRequest().body(response);
+            return ApiResponse.error(e.getMessage());
         }
     }
 
@@ -65,7 +65,7 @@ public class FamilyController {
 
     // 添加用户到家庭
     @PostMapping("/join")
-    public ResponseEntity<?> JoinFamily(
+    public ApiResponse<?> JoinFamily(
             @RequestBody Map<String, Object> requestBody,
             HttpServletRequest httpRequest) {
         Long familyId = Long.valueOf(requestBody.get("familyId").toString());
@@ -79,14 +79,14 @@ public class FamilyController {
             );
 
             if (success) {
-                return ResponseEntity.ok().build();
+                return ApiResponse.success("加入家庭成功");
             } else {
-                return ResponseEntity.badRequest().body("添加成员失败");
+                return ApiResponse.error("添加成员失败");
             }
         } catch (Exception e) {
             Map<String, String> response = new HashMap<>();
             response.put("error", e.getMessage());
-            return ResponseEntity.badRequest().body(response);
+            return ApiResponse.error( e.getMessage());
         }
     }
 
